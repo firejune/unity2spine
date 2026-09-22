@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unity2spine"
+version = "0.1.0"
+description = "Convert Unity 2D rigged AssetBundles to Spine 3.8 skeleton data with GUI, Web viewer, and GIF exporter."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Joon Ho Cho", email = "firejune@gmail.com" }
+]
+keywords = [
+    "unity",
+    "assetbundle",
+    "spine",
+    "spine-2d",
+    "skeletal-animation",
+    "skinnedmeshrenderer",
+    "animation",
+    "game-dev"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Software Development :: Build Tools",
+]
+dependencies = [
+    "numpy>=1.22.0",
+    "opencv-python>=4.6.0",
+    "Pillow>=9.0.0",
+    "UnityPy>=1.10.0",
+    "Flask>=2.0.0",
+]
+
+[project.optional-dependencies]
+gui = [
+    "PyQt5>=5.15.0",
+    "PyOpenGL>=3.1.5",
+]
+all = [
+    "unity2spine[gui]",
+]
+
+[project.scripts]
+unity2spine = "unity_to_spine:main"
+unity2spine-gui = "gui_converter:main"
+unity2spine-viewer = "viewer_server:main"
+
+[project.urls]
+Homepage = "https://github.com/firejune/unity2spine"
+Repository = "https://github.com/firejune/unity2spine.git"
+Issues = "https://github.com/firejune/unity2spine/issues"
+
+[tool.setuptools]
+py-modules = [
+    "unity_to_spine",
+    "gui_converter",
+    "viewer_server",
+    "uscene",
+    "oracle",
+    "oracle_all",
+    "fidelity",
+    "fidelity_md",
+    "probe_3d",
+]
+
+[tool.setuptools.package-data]
+"*" = ["static/*"]

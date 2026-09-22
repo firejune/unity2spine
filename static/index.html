@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unity AssetBundle Viewer - Spine Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: #16213e;
+    border-right: 1px solid #0f3460;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .sidebar-header {
+    padding: 16px;
+    background: #0f3460;
+    border-bottom: 1px solid #1a1a4e;
+  }
+  .sidebar-header h2 {
+    font-size: 18px;
+    color: #e94560;
+    margin-bottom: 4px;
+  }
+  .sidebar-header .subtitle {
+    font-size: 12px;
+    color: #a0a0b0;
+  }
+  .section {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1a1a4e;
+  }
+  .section h3 {
+    font-size: 13px;
+    color: #a0a0b0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 3px 0;
+  }
+  .info-row .label { color: #808090; }
+  .info-row .value { color: #e0e0e0; font-weight: 600; }
+  .anim-list { list-style: none; }
+  .anim-item {
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+    transition: background 0.15s;
+  }
+  .anim-item:hover { background: #1a2a4e; }
+  .anim-item.active { background: #0f3460; color: #e94560; font-weight: 600; }
+  .anim-item .duration { font-size: 11px; color: #808090; font-family: monospace; }
+  .slot-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 12px;
+  }
+  .slot-item input { margin-right: 8px; accent-color: #e94560; }
+  .slot-item label { color: #c0c0d0; cursor: pointer; }
+  /* Main area */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .toolbar {
+    height: 48px;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .btn-group { display: flex; gap: 4px; }
+  .btn {
+    background: #0f3460;
+    border: 1px solid #1a4a80;
+    color: #e0e0e0;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: #1a4a80; }
+  .btn.active { background: #e94560; border-color: #e94560; }
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #808090;
+  }
+  .slider-group input[type=range] {
+    width: 120px;
+    accent-color: #e94560;
+  }
+  .time-display {
+    font-family: monospace;
+    font-size: 13px;
+    color: #e94560;
+    min-width: 48px;
+  }
+  .canvas-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .status-bar {
+    height: 24px;
+    background: #0f172a;
+    border-top: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #808090;
+    font-size: 14px;
+  }
+  .loading .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #0f3460;
+    border-top: 3px solid #e94560;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  .skeleton-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #a0a0b0;
+  }
+  .skeleton-toggle input { accent-color: #e94560; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h2>Unity2Spine Viewer</h2>
+    <div class="subtitle" id="bundle-name">Loading...</div>
+  </div>
+
+  <div class="section">
+    <h3>Model Info</h3>
+    <div class="info-row"><span class="label">Bones</span><span class="value" id="info-bones">-</span></div>
+    <div class="info-row"><span class="label">Slots</span><span class="value" id="info-slots">-</span></div>
+    <div class="info-row"><span class="label">Animations</span><span class="value" id="info-anims">-</span></div>
+    <div class="info-row"><span class="label">Version</span><span class="value" id="info-version">-</span></div>
+  </div>
+
+  <div class="section" style="flex:1; overflow-y: auto;">
+    <h3>Animations</h3>
+    <ul class="anim-list" id="anim-list"></ul>
+  </div>
+
+  <div class="section">
+    <div class="skeleton-toggle">
+      <label><input type="checkbox" id="show-skeleton" checked> Show Bones</label>
+    </div>
+  </div>
+
+  <div class="section" style="max-height: 200px; overflow-y: auto;">
+    <h3>Slots / Parts</h3>
+    <div id="slot-list"></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="toolbar">
+    <div class="btn-group">
+      <button class="btn" id="btn-prev" title="Previous Frame">⏮</button>
+      <button class="btn active" id="btn-play" title="Play / Pause">▶</button>
+      <button class="btn" id="btn-next" title="Next Frame">⏭</button>
+    </div>
+    <div class="slider-group">
+      <label>Time</label>
+      <input type="range" id="time-slider" min="0" max="100" value="0" step="0.1">
+      <span class="time-display" id="time-display">0.00s</span>
+    </div>
+    <div class="slider-group">
+      <label>Speed</label>
+      <input type="range" id="speed-slider" min="0.1" max="3" value="1" step="0.1">
+      <span class="time-display" id="speed-display">1x</span>
+    </div>
+    <div class="btn-group">
+      <button class="btn" id="btn-loop" title="Loop Playback">🔁</button>
+    </div>
+  </div>
+
+  <div class="canvas-container" id="canvas-container">
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div>Loading AssetBundle...</div>
+    </div>
+    <canvas id="main-canvas"></canvas>
+  </div>
+
+  <div class="status-bar">
+    <span id="status-text">Ready</span>
+    <span id="status-fps"></span>
+  </div>
+</div>
+
+<script>
+// ====== Spine Runtime (lightweight, 3.8 compatible) ======
+
+class SpineBone {
+  constructor(data, parent) {
+    this.data = data;
+    this.parent = parent;
+    this.children = [];
+    this.x = data.x || 0;
+    this.y = data.y || 0;
+    this.rotation = data.rotation || 0;
+    this.scaleX = data.scaleX !== undefined ? data.scaleX : 1;
+    this.scaleY = data.scaleY !== undefined ? data.scaleY : 1;
+    this.shearY = data.shearY || 0;
+    this._worldX = 0; this._worldY = 0;
+    this._worldRotation = 0;
+    this._worldScaleX = 1; this._worldScaleY = 1;
+  }
+
+  setToSetupPose() {
+    this.x = this.data.x || 0;
+    this.y = this.data.y || 0;
+    this.rotation = this.data.rotation || 0;
+    this.scaleX = this.data.scaleX !== undefined ? this.data.scaleX : 1;
+    this.scaleY = this.data.scaleY !== undefined ? this.data.scaleY : 1;
+    this.shearY = this.data.shearY || 0;
+  }
+
+  updateWorldTransform() {
+    if (this.parent) {
+      const pw = this.parent._worldX, py = this.parent._worldY;
+      const pr = this.parent._worldRotation;
+      const psx = this.parent._worldScaleX, psy = this.parent._worldScaleY;
+      const cos = Math.cos(pr * Math.PI / 180);
+      const sin = Math.sin(pr * Math.PI / 180);
+      this._worldX = pw + this.x * psx * cos - this.y * psy * sin;
+      this._worldY = py + this.x * psx * sin + this.y * psy * cos;
+      this._worldRotation = pr + this.rotation + this.shearY;
+      this._worldScaleX = psx * this.scaleX;
+      this._worldScaleY = psy * this.scaleY;
+    } else {
+      this._worldX = this.x; this._worldY = this.y;
+      this._worldRotation = this.rotation + this.shearY;
+      this._worldScaleX = this.scaleX; this._worldScaleY = this.scaleY;
+    }
+  }
+}
+
+class SpineSlot {
+  constructor(data, boneIndex) {
+    this.data = data;
+    this.boneIndex = boneIndex;
+    this.attachmentName = data.attachment || null;
+    this.visible = true;
+  }
+}
+
+class SpineSkeleton {
+  constructor(json) {
+    this.data = json;
+    this.bones = [];
+    this.slots = [];
+    this.bonesByName = {};
+    this.buildBones();
+    this.buildSlots();
+  }
+
+  buildBones() {
+    this.bones = [];
+    this.bonesByName = {};
+    for (const bd of this.data.bones) {
+      const parent = bd.parent ? this.bonesByName[bd.parent] : null;
+      const bone = new SpineBone(bd, parent);
+      if (parent) parent.children.push(bone);
+      this.bones.push(bone);
+      this.bonesByName[bd.name] = bone;
+    }
+  }
+
+  buildSlots() {
+    this.slots = [];
+    for (const sd of this.data.slots) {
+      const bi = this.data.bones.findIndex(b => b.name === sd.bone);
+      this.slots.push(new SpineSlot(sd, bi >= 0 ? bi : 0));
+    }
+  }
+
+  setToSetupPose() {
+    for (const b of this.bones) b.setToSetupPose();
+  }
+
+  updateWorldTransform() {
+    for (const b of this.bones) b.updateWorldTransform();
+  }
+
+  getAttachment(slotIndex) {
+    const slot = this.slots[slotIndex];
+    if (!slot || !slot.attachmentName) return null;
+    const skin = this.data.skins[0];
+    if (!skin) return null;
+    const att = skin.attachments[slot.attachmentName];
+    return att ? att[slot.attachmentName] : null;
+  }
+}
+
+// ====== Renderer ======
+
+class SpineRenderer {
+  constructor(canvas, skeleton, atlasImages) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.skeleton = skeleton;
+    this.atlasImages = atlasImages; // {atlasKey: Image}
+    this.showSkeleton = true;
+    this.bgColor = '#0d0d1a';
+    this.scale = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.slotVisibility = {}; // slotName -> bool
+    // Compute initial viewport
+    this.fitToScreen();
+  }
+
+  fitToScreen() {
+    const sk = this.skeleton.data.skeleton;
+    const w = sk.width || 1000;
+    const h = sk.height || 1000;
+    const cw = this.canvas.parentElement.clientWidth;
+    const ch = this.canvas.parentElement.clientHeight;
+    this.scale = Math.min(cw / w, ch / h) * 0.85;
+    this.offsetX = (cw - w * this.scale) / 2;
+    this.offsetY = (ch - h * this.scale) / 2;
+    this.canvas.width = cw;
+    this.canvas.height = ch;
+  }
+
+  setShowSkeleton(v) { this.showSkeleton = v; }
+
+  setSlotVisible(name, v) { this.slotVisibility[name] = v; }
+
+  render() {
+    const ctx = this.ctx;
+    const cw = this.canvas.width;
+    const ch = this.canvas.height;
+    ctx.clearRect(0, 0, cw, ch);
+
+    // Background checkerboard
+    const cs = 12;
+    for (let y = 0; y < ch; y += cs) {
+      for (let x = 0; x < cw; x += cs) {
+        const c = ((x / cs + y / cs) % 2 === 0) ? '#1a1a2e' : '#222244';
+        ctx.fillStyle = c; ctx.fillRect(x, y, cs, cs);
+      }
+    }
+
+    const sk = this.skeleton.data.skeleton;
+    const ox = sk.x || 0;
+    const oy = sk.y || 0;
+
+    // Draw slots from back to front
+    for (let si = 0; si < this.skeleton.slots.length; si++) {
+      const slot = this.skeleton.slots[si];
+      if (!slot.visible) continue;
+      if (this.slotVisibility[slot.data.name] === false) continue;
+
+      const att = this.skeleton.getAttachment(si);
+      if (!att || !att.vertices) continue;
+
+      const bone = this.skeleton.bones[slot.boneIndex];
+      if (!bone) continue;
+
+      // Find atlas image
+      let img = null;
+      for (const [key, image] of Object.entries(this.atlasImages)) {
+        if (image._atlasName === att.path) { img = image; break; }
+      }
+      if (!img) continue;
+
+      const verts = att.vertices;
+      const tris = att.triangles;
+      const uvs = att.uvs;
+      const iw = att.width || img.width;
+      const ih = att.height || img.height;
+
+      // Parse vertices
+      const parsedVerts = [];
+      let vi = 0;
+      while (vi < verts.length) {
+        const boneCount = verts[vi++];
+        const v = { bones: [], worldX: 0, worldY: 0 };
+        for (let b = 0; b < boneCount; b++) {
+          const bi = verts[vi++];
+          const vx = verts[vi++];
+          const vy = verts[vi++];
+          const bw = verts[vi++];
+          const boneObj = this.skeleton.bones[bi];
+          if (boneObj) {
+            const cos = Math.cos(boneObj._worldRotation * Math.PI / 180);
+            const sin = Math.sin(boneObj._worldRotation * Math.PI / 180);
+            const wx = boneObj._worldX + (vx * boneObj._worldScaleX * cos - vy * boneObj._worldScaleY * sin);
+            const wy = boneObj._worldY + (vx * boneObj._worldScaleX * sin + vy * boneObj._worldScaleY * cos);
+            v.worldX += wx * bw;
+            v.worldY += wy * bw;
+          }
+        }
+        parsedVerts.push(v);
+      }
+
+      // Transform to canvas
+      function tx(x) { return (x - ox) * this.scale + this.offsetX; }
+      function ty(y) { return (y - oy) * this.scale + this.offsetY; }
+
+      // Draw triangles
+      ctx.save();
+      for (let ti = 0; ti < tris.length; ti += 3) {
+        const i0 = tris[ti], i1 = tris[ti + 1], i2 = tris[ti + 2];
+        if (i0 >= parsedVerts.length || i1 >= parsedVerts.length || i2 >= parsedVerts.length) continue;
+        const v0 = parsedVerts[i0], v1 = parsedVerts[i1], v2 = parsedVerts[i2];
+        const u0 = uvs[i0 * 2], vv0 = uvs[i0 * 2 + 1];
+        const u1 = uvs[i1 * 2], vv1 = uvs[i1 * 2 + 1];
+        const u2 = uvs[i2 * 2], vv2 = uvs[i2 * 2 + 1];
+
+        const cx0 = tx.call(this, v0.worldX), cy0 = ty.call(this, v0.worldY);
+        const cx1 = tx.call(this, v1.worldX), cy1 = ty.call(this, v1.worldY);
+        const cx2 = tx.call(this, v2.worldX), cy2 = ty.call(this, v2.worldY);
+
+        // Clip-path: draw with texture
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(cx0, cy0);
+        ctx.lineTo(cx1, cy1);
+        ctx.lineTo(cx2, cy2);
+        ctx.closePath();
+        ctx.clip();
+
+        // Affine transform for texture mapping
+        const su0 = u0 * iw, sv0 = vv0 * ih;
+        const su1 = u1 * iw, sv1 = vv1 * ih;
+        const su2 = u2 * iw, sv2 = vv2 * ih;
+
+        const dx = cx0, dy = cy0;
+        const du1 = su1 - su0, du2 = su2 - su0;
+        const dv1 = sv1 - sv0, dv2 = sv2 - sv0;
+        const dc1x = cx1 - cx0, dc1y = cy1 - cy0;
+        const dc2x = cx2 - cx0, dc2y = cy2 - cy0;
+
+        const det = du1 * dv2 - du2 * dv1;
+        if (Math.abs(det) < 0.0001) {
+          ctx.restore();
+          continue;
+        }
+        const a = (dv2 * dc1x - dv1 * dc2x) / det;
+        const c = (dv2 * dc1y - dv1 * dc2y) / det;
+        const b = (du1 * dc2x - du2 * dc1x) / det;
+        const d = (du1 * dc2y - du2 * dc1y) / det;
+        const e = dx - a * su0 - b * sv0;
+        const f = dy - c * su0 - d * sv0;
+
+        ctx.setTransform(a, c, b, d, e, f);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    // Draw skeleton
+    if (this.showSkeleton) {
+      for (const bone of this.skeleton.bones) {
+        if (!bone.parent) continue;
+        const px = tx.call(this, bone.parent._worldX);
+        const py = ty.call(this, bone.parent._worldY);
+        const cx = tx.call(this, bone._worldX);
+        const cy = ty.call(this, bone._worldY);
+
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(cx, cy);
+        ctx.strokeStyle = 'rgba(233, 69, 96, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Bone joint
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#e94560';
+        ctx.fill();
+      }
+    }
+  }
+}
+
+// ====== Animation Player ======
+
+class AnimationPlayer {
+  constructor(skeleton, animData) {
+    this.skeleton = skeleton;
+    this.animData = animData;
+    this.time = 0;
+    this.duration = animData.duration || 1;
+    this.playing = false;
+    this.loop = true;
+    this.speed = 1;
+    this.lastTime = performance.now();
+  }
+
+  apply(time) {
+    this.time = time;
+    this.skeleton.setToSetupPose();
+    const tracks = this.animData.bones;
+    if (!tracks) return;
+
+    for (const [boneName, track] of Object.entries(tracks)) {
+      const bone = this.skeleton.bonesByName[boneName];
+      if (!bone) continue;
+
+      if (track.rotate) this._applyKeys(time, track.rotate, (v) => { bone.rotation += v.angle; });
+      if (track.translate) this._applyKeys(time, track.translate, (v) => { bone.x += v.x; bone.y += v.y; });
+      if (track.scale) this._applyKeys(time, track.scale, (v) => { bone.scaleX *= v.x; bone.scaleY *= v.y; });
+      if (track.shear) this._applyKeys(time, track.shear, (v) => { bone.shearY += v.y; });
+    }
+    this.skeleton.updateWorldTransform();
+  }
+
+  _applyKeys(time, keys, setter) {
+    if (!keys || keys.length === 0) return;
+    if (time <= keys[0].time) { setter(keys[0]); return; }
+    if (time >= keys[keys.length - 1].time) { setter(keys[keys.length - 1]); return; }
+
+    let lo = 0, hi = keys.length - 1;
+    while (lo < hi - 1) {
+      const mid = (lo + hi) >> 1;
+      if (keys[mid].time <= time) lo = mid;
+      else hi = mid;
+    }
+    const k0 = keys[lo], k1 = keys[hi];
+    const dt = k1.time - k0.time;
+    if (dt < 0.0001) { setter(k0); return; }
+    const t = (time - k0.time) / dt;
+
+    // Interpolate
+    const interp = {};
+    for (const key of Object.keys(k0)) {
+      if (key === 'time') continue;
+      interp[key] = k0[key] + (k1[key] - k0[key]) * t;
+    }
+    setter(interp);
+  }
+
+  tick(now) {
+    if (!this.playing) return;
+    const dt = (now - this.lastTime) / 1000 * this.speed;
+    this.lastTime = now;
+    this.time += dt;
+    if (this.time >= this.duration) {
+      if (this.loop) {
+        this.time = this.time % this.duration;
+      } else {
+        this.time = this.duration;
+        this.playing = false;
+      }
+    }
+  }
+}
+
+// ====== App ======
+
+let skeleton = null;
+let renderer = null;
+let player = null;
+let animations = {};
+let currentAnimName = null;
+let atlasImages = {};
+
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+
+function loadImages(atlases) {
+  return new Promise((resolve) => {
+    const entries = Object.entries(atlases);
+    if (entries.length === 0) { resolve({}); return; }
+    let loaded = 0;
+    const images = {};
+    for (const [key, data] of entries) {
+      const img = new Image();
+      img.onload = () => {
+        img._atlasName = data.name;
+        loaded++;
+        if (loaded === entries.length) resolve(images);
+      };
+      img.onerror = () => {
+        loaded++;
+        if (loaded === entries.length) resolve(images);
+      };
+      img.src = data.base64;
+      images[key] = img;
+    }
+  });
+}
+
+async function init() {
+  try {
+    const resp = await fetch('/api/scene');
+    const data = await resp.json();
+    const skel = data.skeleton;
+    const atlases = data.atlases;
+
+    document.getElementById('bundle-name').textContent = 'BlackWyrm_NS1';
+    document.getElementById('info-bones').textContent = skel.bones.length;
+    document.getElementById('info-slots').textContent = skel.slots.length;
+    document.getElementById('info-anims').textContent = Object.keys(skel.animations).length;
+    document.getElementById('info-version').textContent = skel.skeleton.spine;
+
+    // Anim list
+    const animList = document.getElementById('anim-list');
+    animations = skel.animations;
+    for (const [name, anim] of Object.entries(animations)) {
+      const li = document.createElement('li');
+      li.className = 'anim-item';
+      li.innerHTML = `<span class="name">${name}</span><span class="dur">${anim.duration}s</span>`;
+      li.onclick = () => selectAnimation(name);
+      animList.appendChild(li);
+    }
+
+    // Slot list
+    const slotList = document.getElementById('slot-list');
+    for (const slot of skel.slots) {
+      const div = document.createElement('div');
+      div.className = 'slot-item';
+      div.textContent = slot.name;
+      div.onclick = () => {
+        const visible = renderer.slotVisibility[slot.name] !== false;
+        renderer.setSlotVisible(slot.name, !visible);
+        div.classList.toggle('hidden', visible);
+      };
+      slotList.appendChild(div);
+    }
+
+    // Load images
+    document.getElementById('loading').style.display = 'block';
+    atlasImages = await loadImages(atlases);
+    document.getElementById('loading').style.display = 'none';
+
+    // Build skeleton
+    skeleton = new SpineSkeleton(skel);
+    renderer = new SpineRenderer(canvas, skeleton, atlasImages);
+
+    // Select first animation
+    const animNames = Object.keys(animations);
+    if (animNames.length > 0) {
+      selectAnimation(animNames[0]);
+    } else {
+      skeleton.setToSetupPose();
+      skeleton.updateWorldTransform();
+      renderer.render();
+    }
+
+    document.getElementById('status-text').textContent = 'Ready';
+    startRenderLoop();
+  } catch (err) {
+    console.error(err);
+    document.getElementById('loading').innerHTML = `<div style="color:#e94560">Failed to load: ${err.message}</div>`;
+  }
+}
+
+function selectAnimation(name) {
+  currentAnimName = name;
+  const anim = animations[name];
+  if (!anim) return;
+
+  player = new AnimationPlayer(skeleton, anim);
+  player.loop = document.getElementById('btn-loop').classList.contains('active');
+
+  document.querySelectorAll('.anim-item').forEach(el => el.classList.remove('active'));
+  const items = document.querySelectorAll('.anim-item');
+  const names = Object.keys(animations);
+  const idx = names.indexOf(name);
+  if (idx >= 0 && items[idx]) items[idx].classList.add('active');
+
+  document.getElementById('time-slider').max = anim.duration * 100;
+  document.getElementById('time-display').textContent = '0.00s';
+  document.getElementById('status-text').textContent = `Animation: ${name}`;
+
+  player.apply(0);
+  renderer.render();
+}
+
+function startRenderLoop() {
+  function loop(now) {
+    if (player && player.playing) {
+      player.tick(now);
+      player.apply(player.time);
+      document.getElementById('time-slider').value = player.time * 100;
+      document.getElementById('time-display').textContent = player.time.toFixed(2) + 's';
+      if (!player.playing && !player.loop) {
+        document.getElementById('btn-play').textContent = '▶';
+        document.getElementById('btn-play').classList.remove('active');
+      }
+    }
+    renderer.render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+
+// ====== UI Events ======
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (!player) return;
+  player.playing = !player.playing;
+  player.lastTime = performance.now();
+  const btn = document.getElementById('btn-play');
+  btn.textContent = player.playing ? '⏸' : '▶';
+  btn.classList.toggle('active', player.playing);
+});
+
+document.getElementById('btn-prev').addEventListener('click', () => {
+  if (!player) return;
+  player.playing = false;
+  document.getElementById('btn-play').textContent = '▶';
+  document.getElementById('btn-play').classList.remove('active');
+  player.time = Math.max(0, player.time - 1/30);
+  player.apply(player.time);
+  document.getElementById('time-slider').value = player.time * 100;
+  document.getElementById('time-display').textContent = player.time.toFixed(2) + 's';
+});
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  if (!player) return;
+  player.playing = false;
+  document.getElementById('btn-play').textContent = '▶';
+  document.getElementById('btn-play').classList.remove('active');
+  player.time = Math.min(player.duration, player.time + 1/30);
+  player.apply(player.time);
+  document.getElementById('time-slider').value = player.time * 100;
+  document.getElementById('time-display').textContent = player.time.toFixed(2) + 's';
+});
+
+document.getElementById('btn-loop').addEventListener('click', () => {
+  const btn = document.getElementById('btn-loop');
+  btn.classList.toggle('active');
+  if (player) player.loop = btn.classList.contains('active');
+});
+
+document.getElementById('time-slider').addEventListener('input', (e) => {
+  if (!player) return;
+  player.playing = false;
+  document.getElementById('btn-play').textContent = '▶';
+  document.getElementById('btn-play').classList.remove('active');
+  player.time = parseFloat(e.target.value) / 100;
+  player.apply(player.time);
+  document.getElementById('time-display').textContent = player.time.toFixed(2) + 's';
+});
+
+document.getElementById('speed-slider').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  document.getElementById('speed-display').textContent = v.toFixed(1) + 'x';
+  if (player) player.speed = v;
+});
+
+document.getElementById('show-skeleton').addEventListener('change', (e) => {
+  if (renderer) renderer.setShowSkeleton(e.target.checked);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    document.getElementById('btn-play').click();
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (renderer) renderer.fitToScreen();
+});
+
+// Start
+init();
+</script>
+</body>
+</html>
