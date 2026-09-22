@@ -71,16 +71,9 @@ COLOR_RGB_ATTRS = {
     2334886179: 2,  # m_Color.b
 }
 COMPONENT_ENABLED_ATTR = 3305885265  # zlib.crc32(b"m_Enabled") & 0xFFFFFFFF
-SMR_BLEND_CROSSFADE = 2484067052
-# SkinnedMeshRenderer customType 22 weight (e.g. facial blush / blend shape opacity curves).
-SMR_BLEND_SHAPE_WEIGHT = 2274245065
-
-# Generalized patterns for mouth cross-fade and facial blush/blend parts
-MOUTH_IDLE_RE = re.compile(r"^Part_Mouth_Idle(?:_\w+)?$", re.I)
-MOUTH_A_RE = re.compile(r"^Part_Mouth_A(?:_\w+)?$", re.I)
-BONE_MOUTH_IDLE_RE = re.compile(r"^Bone_Mouth_Idle(?:_\w+)?$", re.I)
-BONE_MOUTH_A_RE = re.compile(r"^Bone_Mouth_A(?:_\w+)?$", re.I)
-BLUSH_PART_RE = re.compile(r"^Part_(?:Balgure|Blush)(?:_[LR])?(?:_\w+)?$", re.I)
+# Material float curve for additional opacity/alpha (customType 22 RendererMaterial, e.g. _AdditionalAlpha).
+# Evaluates to (zlib.crc32(b"_AdditionalAlpha") & 0x0FFFFFFF) | 0x80000000.
+MATERIAL_ADDITIONAL_ALPHA_ATTR = 2274245065
 
 GIZMO_SPRITE_NAMES = frozenset({
     "BoneJoint", "BoneNoJoint", "BoneScaled", "IKControl",
@@ -897,56 +890,6 @@ def sample_clip_properties(clip, sampler, t) -> tuple[dict[int, float], dict[int
         idx += size
     return go_active, smr_alpha, smr_props
 
-def _mouth_bone_active(scene, go_active, bone_pattern: re.Pattern | str) -> bool:
-    """True when matching bone's GameObject exists and is active in this frame."""
-    TR = scene["TR"]
-    tr_to_path = scene["tr_to_path"]
-    go2tr = scene["go2tr"]
-    go_name = scene["go_name"]
-    tr2go = {t: g for g, t in go2tr.items()}
-    for tr, go in tr2go.items():
-        name = go_name.get(go, "")
-        matched = bool(bone_pattern.match(name)) if isinstance(bone_pattern, re.Pattern) else (name == bone_pattern)
-        if matched:
-            return transform_active(tr, go_active, tr_to_path, TR)
-    return True
-
-
-def _mouth_crossfade_opacity(part_name: str, scene, go_active, smr_props) -> float | None:
-    """Cross-fade between Mouth_A and Mouth_Idle when both bones are enabled."""
-    is_a = bool(MOUTH_A_RE.match(part_name))
-    is_idle = bool(MOUTH_IDLE_RE.match(part_name))
-    if not (is_a or is_idle):
-        return None
-
-    a_on = _mouth_bone_active(scene, go_active, BONE_MOUTH_A_RE)
-    idle_on = _mouth_bone_active(scene, go_active, BONE_MOUTH_IDLE_RE)
-    if not a_on and not idle_on:
-        return 0.0
-    if is_a:
-        if not a_on:
-            return 0.0
-        if not idle_on:
-            return 1.0
-    else:
-        if not idle_on:
-            return 0.0
-        if not a_on:
-            return 1.0
-
-    idle_part = next((p for p in scene["parts"] if MOUTH_IDLE_RE.match(p["name"])), None)
-    if idle_part is None:
-        return 1.0
-    idle_path = scene["tr_to_path"].get(idle_part["go_tr_pid"])
-    if idle_path is None:
-        return 1.0
-    props = smr_props.get(path_hash(idle_path), {})
-    idle_weight = props.get(SMR_BLEND_CROSSFADE, 100.0) / 100.0
-    idle_weight = max(0.0, min(1.0, idle_weight))
-    if is_idle:
-        return idle_weight
-    return 1.0 - idle_weight
-
 
 def transform_active(tr, go_active, tr_to_path, TR, tr_initial_active=None) -> bool:
     """False when this transform or an animated ancestor is explicitly disabled."""
@@ -967,12 +910,12 @@ def transform_active(tr, go_active, tr_to_path, TR, tr_initial_active=None) -> b
     return True
 
 
-def _smr_blend_shape_weight(smr_props: dict[int, dict[int, float]], path_h: int) -> float | None:
-    """Optional SMR blend / shader weight keyed by mesh path hash."""
-    weight = smr_props.get(path_h, {}).get(SMR_BLEND_SHAPE_WEIGHT)
-    if weight is None:
+def _material_additional_alpha(smr_props: dict[int, dict[int, float]], path_h: int) -> float | None:
+    """Optional material _AdditionalAlpha curve keyed by renderer path hash."""
+    val = smr_props.get(path_h, {}).get(MATERIAL_ADDITIONAL_ALPHA_ATTR)
+    if val is None:
         return None
-    return max(0.0, min(1.0, weight))
+    return max(0.0, min(1.0, val))
 
 
 def part_rgb(scene, smr_props) -> list[tuple[float, float, float]]:
@@ -1015,27 +958,12 @@ def part_opacities(scene, go_active, smr_alpha, smr_props, default_opacities=Non
     part_names = part_slot_names(scene["parts"])
     out: list[float] = []
     for part, slot_name in zip(scene["parts"], part_names):
-        mouth_op = _mouth_crossfade_opacity(part["name"], scene, go_active, smr_props)
-        if mouth_op is not None:
-            out.append(mouth_op)
-            continue
-
         go_tr = part.get("go_tr_pid") or part.get("tr_pid")
         path_h = None
         if go_tr:
             path = tr_to_path.get(go_tr)
             if path is not None:
                 path_h = path_hash(path)
-
-        blend = _smr_blend_shape_weight(smr_props, path_h) if path_h is not None else None
-        if BLUSH_PART_RE.match(part["name"]) and blend is not None:
-            opacity = blend
-            if path_h is not None:
-                alpha = smr_alpha.get(path_h)
-                if alpha is not None:
-                    opacity *= max(0.0, min(1.0, alpha))
-            out.append(opacity)
-            continue
 
         if go_tr:
             has_explicit_active = False
@@ -1064,15 +992,17 @@ def part_opacities(scene, go_active, smr_alpha, smr_props, default_opacities=Non
                 opacity = 1.0 if default_opacities is None else default_opacities.get(slot_name, default_opacities.get(part["name"], 1.0))
         else:
             opacity = 1.0 if default_opacities is None else default_opacities.get(slot_name, default_opacities.get(part["name"], 1.0))
+
         if path_h is not None:
             alpha = smr_alpha.get(path_h)
             if alpha is not None:
                 opacity *= max(0.0, min(1.0, alpha))
+            add_alpha = _material_additional_alpha(smr_props, path_h)
+            if add_alpha is not None:
+                opacity *= add_alpha
         alpha = smr_alpha.get(part.get("name_hash", 0))
         if alpha is not None:
             opacity *= max(0.0, min(1.0, alpha))
-        if blend is not None:
-            opacity *= blend
         out.append(opacity)
     return out
 

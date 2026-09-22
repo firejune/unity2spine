@@ -66,7 +66,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from unity_to_spine import (
     SPINE_VERSION, FPS, TARGET_W, PAD, GIF_W, GIF_FPS, GIF_BG, EPS,
     ATLAS_SUFFIX_RE, GO_TYPE, GO_ACTIVE_ATTR, SMR_TYPE, SMR_COLOR_A_ATTR,
-    SMR_BLEND_CROSSFADE, VIS_EPS,
+    VIS_EPS,
     mat4, quat_to_m3, make_world, local_matrix, norm180, decompose2d,
     trs_to_spine, r2, atlas_key_from_name, skin_part, skin_all,
     bounds_of, make_canvas_tf, atlases_bgra, prepare_raster_cache,
