@@ -1423,6 +1423,16 @@ def load_scene(src: Path) -> dict[str, Any]:
         uv = np.array(h.m_UV0, dtype=np.float64).reshape(vc, 2)
         vh = np.c_[v, np.ones(vc)]
 
+        # Skip fullscreen camera/frustum background quads (e.g. Rampart's 267-unit Black_BG_aura planes).
+        # These are Unity scene letterbox/camera overlay planes, not 2D skeletal character parts.
+        world_fn = make_world(TR)
+        world_pts = (world_fn(go_tr_pid) @ vh.T).T[:, :2]
+        pw = float(world_pts[:, 0].max() - world_pts[:, 0].min())
+        ph = float(world_pts[:, 1].max() - world_pts[:, 1].min())
+        is_bg = any(k in go.m_Name.lower() for k in ("bg", "black", "aura", "back_red", "screen"))
+        if (pw > 10.0 or ph > 10.0) and (is_bg or pw > 20.0 or ph > 20.0):
+            continue
+
         submesh_triangles = h.get_triangles()
         order = getattr(mr, "m_SortingOrder", 0)
 
